@@ -1,8 +1,8 @@
 # The Official Readwise CLI
 
-A command-line interface for [Readwise](https://readwise.io) and [Reader](https://read.readwise.io). Search your highlights, manage your reading list, tag and organize documents — all from the terminal.
+A command-line interface for [Readwise](https://readwise.io) and [Reader](https://read.readwise.io). Search your documents & highlights, manage your reading list, tag and organize documents — all from the terminal.
 
-Commands are auto-discovered from the Readwise API, so the CLI stays up to date as new features are added.
+Anything you can do in Readwise/Reader, your agent can now do for you.
 
 ## Install
 
