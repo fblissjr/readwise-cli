@@ -1,4 +1,4 @@
-# readwise
+# The Official Readwise CLI
 
 A command-line interface for [Readwise](https://readwise.io) and [Reader](https://read.readwise.io). Search your highlights, manage your reading list, tag and organize documents — all from the terminal.
 
