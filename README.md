@@ -18,7 +18,7 @@ npm install -g @readwise/cli
 readwise login
 ```
 
-### Access token login (for scripts/CI)
+### Access token login (for separate hosts like OpenClaw, or scripts)
 
 Get your token from [readwise.io/access_token](https://readwise.io/access_token), then:
 
