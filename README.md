@@ -64,7 +64,7 @@ readwise reader-get-document-details --document-id <document-id>
 readwise reader-get-document-highlights --document-id <document-id>
 ```
 
-> **Tip: seen vs unseen documents.** In the response, `firstOpenedAt: null` means the document is **unseen** (never opened). A non-null `firstOpenedAt` means it has been opened/seen. Use `reader-edit-document-metadata --seen true` to mark a document as seen.
+> **Tip: seen vs unseen documents.** In the response, `firstOpenedAt: null` means the document is **unseen** (never opened). A non-null `firstOpenedAt` means it has been opened/seen. Use `reader-bulk-edit-document-metadata --documents '[{"document_id":"<id>","seen":true}]'` to mark a document as seen.
 
 ### Save a document
 
@@ -86,12 +86,12 @@ readwise reader-add-tags-to-document --document-id <id> --tag-names "important,r
 readwise reader-remove-tags-from-document --document-id <id> --tag-names "old-tag"
 
 # Move between locations (new/later/shortlist/archive)
-readwise reader-move-document --document-id <id> --location archive
+readwise reader-move-documents --document-ids <id> --location archive
 
 # Edit metadata
-readwise reader-edit-document-metadata --document-id <id> --title "Better Title"
-readwise reader-edit-document-metadata --document-id <id> --seen true  # mark as seen/opened
-readwise reader-set-document-notes --document-id <id> --notes "Updated notes"
+readwise reader-bulk-edit-document-metadata --documents '[{"document_id":"<id>","title":"Better Title"}]'
+readwise reader-bulk-edit-document-metadata --documents '[{"document_id":"<id>","seen":true}]'
+readwise reader-bulk-edit-document-metadata --documents '[{"document_id":"<id>","notes":"Updated notes"}]'
 ```
 
 ### Highlight management
