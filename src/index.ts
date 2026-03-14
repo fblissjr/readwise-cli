@@ -6,6 +6,7 @@ import { getTools } from "./mcp.js";
 import { registerTools } from "./commands.js";
 import { loadConfig } from "./config.js";
 import { VERSION } from "./version.js";
+import { registerSkillsCommands } from "./skills.js";
 
 function readHiddenInput(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -116,8 +117,11 @@ async function main() {
     return;
   }
 
+  // Register skills commands (works without auth)
+  registerSkillsCommands(program);
+
   // If not authenticated and trying a non-login command, tell user to log in
-  if (!config.access_token && hasSubcommand && positionalArgs[0] !== "login" && positionalArgs[0] !== "login-with-token") {
+  if (!config.access_token && hasSubcommand && positionalArgs[0] !== "login" && positionalArgs[0] !== "login-with-token" && positionalArgs[0] !== "skills") {
     process.stderr.write("\x1b[31mNot logged in.\x1b[0m Run `readwise login` or `readwise login-with-token` to authenticate.\n");
     process.exitCode = 1;
     return;

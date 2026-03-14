@@ -386,7 +386,7 @@ function extractCards(data: unknown): CardItem[] | null {
         summary: str(attrs?.highlight_plaintext || obj.text || obj.summary || obj.content || ""),
         note: str(attrs?.highlight_note || obj.note || obj.notes || ""),
         meta: extractHighlightMeta(obj),
-        url: extractCardUrl(obj),
+        url: obj.id ? `https://readwise.io/open/${obj.id}` : extractCardUrl(obj),
         raw: obj,
       };
     }
