@@ -125,6 +125,21 @@ Pipe results to `jq`:
 readwise reader-list-documents --limit 3 --json | jq '.results[].title'
 ```
 
+## Skills
+
+Pre-built workflows your AI agent can run. Install them with one command:
+
+```bash
+readwise skills install claude    # or codex, opencode
+readwise skills list              # see all available skills
+```
+
+Browse and contribute skills at [github.com/readwiseio/readwise-skills](https://github.com/readwiseio/readwise-skills).
+
+## Looking for MCP?
+
+Using Claude Desktop, ChatGPT, or another AI app? Connect Readwise via MCP — no terminal needed. [Set up Readwise MCP →](https://readwise.io/mcp)
+
 ## How it works
 
 The CLI connects to the [Readwise MCP server](https://mcp2.readwise.io) internally, auto-discovers available tools, and exposes each one as a CLI command. The tool list is cached locally for 24 hours.
