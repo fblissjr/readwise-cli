@@ -1434,11 +1434,11 @@ function buildCardLines(card: CardItem, ci: number, selected: boolean, cardWidth
     const passage = card.summary || "\u2026";
     const maxQuoteW = innerW - quotePrefix.length;
     const wrapped = wrapText(passage, maxQuoteW);
-    // Cap at 3 lines
-    const showLines = wrapped.slice(0, 3);
-    if (wrapped.length > 3) {
-      const last = showLines[2]!;
-      showLines[2] = truncateVisible(last, maxQuoteW - 1) + "…";
+    // Cap at 6 lines
+    const showLines = wrapped.slice(0, 6);
+    if (wrapped.length > 6) {
+      const last = showLines[5]!;
+      showLines[5] = truncateVisible(last, maxQuoteW - 1) + "…";
     }
     for (let i = 0; i < showLines.length; i++) {
       let lineText: string;
@@ -2523,7 +2523,7 @@ function cardLineCount(card: CardItem, cardWidth: number): number {
     const quoteW = innerW - 2; // account for quote prefix
     const passage = card.summary || "\u2026";
     const wrapped = wrapText(passage, quoteW);
-    const textLines = Math.min(wrapped.length, 3);
+    const textLines = Math.min(wrapped.length, 6);
     return 2 + textLines + (card.note ? 1 : 0) + (card.meta ? 1 : 0); // top + text + note? + meta? + bottom
   }
   return 2 + 1 + (card.summary ? 1 : 0) + (card.meta ? 1 : 0); // top + title + summary? + meta? + bottom
