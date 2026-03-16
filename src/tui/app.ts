@@ -445,6 +445,11 @@ function extractDocTitle(obj: Record<string, unknown>): string {
 }
 
 function extractDocSummary(obj: Record<string, unknown>): string {
+  // Prefer first matched chunk text (from search results)
+  if (Array.isArray(obj.matches) && obj.matches.length > 0) {
+    const first = obj.matches[0] as Record<string, unknown> | undefined;
+    if (first?.plaintext && typeof first.plaintext === "string") return first.plaintext;
+  }
   for (const key of ["summary", "description", "note", "notes", "content"]) {
     const val = obj[key];
     if (val && typeof val === "string") return val;
@@ -1420,7 +1425,44 @@ function cardLine(text: string, innerW: number, borderFn: (s: string) => string)
   return "  " + borderFn("│") + " " + fitWidth(text, innerW) + " " + borderFn("│");
 }
 
-function buildCardLines(card: CardItem, ci: number, selected: boolean, cardWidth: number): string[] {
+/** Build a regex that matches any individual word from the query (case-insensitive) */
+function searchTermRegex(query: string): RegExp | null {
+  const words = query.trim().split(/\s+/).filter((w) => w.length >= 3);
+  if (words.length === 0) return null;
+  const escaped = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(`(${escaped.join("|")})`, "gi");
+}
+
+/** Shift text so the first match is visible, returning a window of ~maxChars */
+function snippetAroundMatch(text: string, query: string, maxChars: number): string {
+  const re = searchTermRegex(query);
+  if (!re) return text.slice(0, maxChars);
+  const m = re.exec(text);
+  if (!m) return text.slice(0, maxChars);
+  const matchStart = m.index;
+  // Start the window a bit before the match
+  let start = Math.max(0, matchStart - Math.floor(maxChars / 4));
+  // Snap forward to a word boundary so we don't cut mid-word
+  if (start > 0) {
+    const nextSpace = text.indexOf(" ", start);
+    if (nextSpace !== -1 && nextSpace < matchStart) {
+      start = nextSpace + 1;
+    }
+  }
+  const snippet = text.slice(start, start + maxChars);
+  // Only add leading ellipsis; trailing truncation is handled by the card renderer
+  return start > 0 ? "…" + snippet : snippet;
+}
+
+/** Bold all occurrences of search terms in a line */
+function highlightTerms(line: string, query: string): string {
+  const re = searchTermRegex(query);
+  if (!re) return line;
+  // \x1b[22;1;3;37m = undim+bold+italic+white, \x1b[22;23;2;39m = unbold+unitalic+dim+default color
+  return line.replace(re, (match) => `\x1b[22;1;3;37m${match}\x1b[22;23;2;39m`);
+}
+
+function buildCardLines(card: CardItem, ci: number, selected: boolean, cardWidth: number, searchQuery?: string): string[] {
   const borderColor = selected ? style.cyan : style.dim;
   const innerW = Math.max(1, cardWidth - 4);
   const lines: string[] = [];
@@ -1471,8 +1513,19 @@ function buildCardLines(card: CardItem, ci: number, selected: boolean, cardWidth
     lines.push(cardLine(titleStyled, innerW, borderColor));
 
     if (card.summary) {
-      const summaryText = truncateVisible(card.summary, innerW);
-      lines.push(cardLine(style.dim(summaryText), innerW, borderColor));
+      const snippet = searchQuery
+        ? snippetAroundMatch(card.summary, searchQuery, innerW * 3)
+        : card.summary;
+      const wrapped = wrapText(snippet, innerW);
+      const showLines = wrapped.slice(0, 3);
+      if (wrapped.length > 3) {
+        const last = showLines[2]!;
+        showLines[2] = truncateVisible(last, innerW - 1) + "…";
+      }
+      for (const sl of showLines) {
+        const highlighted = searchQuery ? highlightTerms(sl, searchQuery) : sl;
+        lines.push(cardLine(style.dim(highlighted), innerW, borderColor));
+      }
     }
 
     if (card.meta) {
@@ -1498,10 +1551,13 @@ function renderCardView(state: AppState): string[] {
   content.push("  " + style.bold("Results") + countInfo);
   content.push("");
 
+  // Extract search query from form values (try common field names)
+  const searchQuery = state.formValues["query"] || state.formValues["vector_search_term"] || state.formValues["search"] || "";
+
   // Build all card lines
   const allLines: { line: string; cardIdx: number }[] = [];
   for (let ci = 0; ci < cards.length; ci++) {
-    const cardContentLines = buildCardLines(cards[ci]!, ci, ci === state.resultCursor, cardWidth);
+    const cardContentLines = buildCardLines(cards[ci]!, ci, ci === state.resultCursor, cardWidth, searchQuery || undefined);
     for (const line of cardContentLines) {
       allLines.push({ line, cardIdx: ci });
     }
@@ -2526,7 +2582,8 @@ function cardLineCount(card: CardItem, cardWidth: number): number {
     const textLines = Math.min(wrapped.length, 6);
     return 2 + textLines + (card.note ? 1 : 0) + (card.meta ? 1 : 0); // top + text + note? + meta? + bottom
   }
-  return 2 + 1 + (card.summary ? 1 : 0) + (card.meta ? 1 : 0); // top + title + summary? + meta? + bottom
+  const summaryLines = card.summary ? Math.min(wrapText(card.summary, 60).length, 3) : 0;
+  return 2 + 1 + summaryLines + (card.meta ? 1 : 0); // top + title + summary + meta? + bottom
 }
 
 function computeCardScroll(cards: CardItem[], cursor: number, currentScroll: number, availableHeight: number): number {
