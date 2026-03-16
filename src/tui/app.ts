@@ -2957,7 +2957,17 @@ export async function runApp(tools: ToolDef[]): Promise<void> {
       resolve();
     };
 
-    const onData = async (data: Buffer) => {
+    const runTool = (loadingState: AppState) => {
+      executeTool(loadingState).then((resultState) => {
+        // If user quit during loading, don't update state
+        if (state.view !== "loading") return;
+        state = resultState;
+        paint(renderState(state));
+        resetQuitTimer();
+      });
+    };
+
+    const onData = (data: Buffer) => {
       const key = parseKey(data);
 
       if (key.ctrl && key.name === "c") {
@@ -2986,18 +2996,14 @@ export async function runApp(tools: ToolDef[]): Promise<void> {
       if (result === "submit") {
         state = { ...state, view: "loading", spinnerFrame: 0 };
         paint(renderState(state));
-        state = await executeTool(state);
-        paint(renderState(state));
-        resetQuitTimer();
+        runTool(state);
         return;
       }
 
       if (result.view === "loading") {
         state = { ...result, spinnerFrame: 0 };
         paint(renderState(state));
-        state = await executeTool(state);
-        paint(renderState(state));
-        resetQuitTimer();
+        runTool(state);
         return;
       }
 
