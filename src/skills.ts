@@ -129,6 +129,95 @@ const PLATFORMS: Record<string, { name: string; path: string }> = {
   opencode: { name: "OpenCode", path: join(homedir(), ".opencode", "skills") },
 };
 
+/** Interactive checkbox picker — returns selected items */
+async function pickSkills(
+  names: string[],
+  descriptions: Map<string, string>
+): Promise<string[] | null> {
+  const selected = new Set<string>(names.filter((n) => n === "readwise-cli"));
+  let cursor = 0;
+
+  const render = () => {
+    // Move cursor up to overwrite previous render
+    process.stderr.write(`\x1b[${names.length + 2}A\x1b[J`);
+    process.stderr.write("  Select skills to install (space toggle, a all/none, enter confirm):\n\n");
+    for (let i = 0; i < names.length; i++) {
+      const check = selected.has(names[i]!) ? "\x1b[32m✔\x1b[0m" : " ";
+      const pointer = i === cursor ? "\x1b[36m❯\x1b[0m" : " ";
+      const desc = descriptions.get(names[i]!) || "";
+      const descText = desc ? `  \x1b[2m${desc}\x1b[0m` : "";
+      process.stderr.write(`  ${pointer} [${check}] ${names[i]}${descText}\n`);
+    }
+  };
+
+  // Initial render (print blank lines first so the upward cursor move works)
+  process.stderr.write("\n".repeat(names.length + 2));
+  render();
+
+  return new Promise((resolve) => {
+    if (!process.stdin.isTTY) {
+      // Non-interactive: install all
+      resolve(names);
+      return;
+    }
+
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+
+    const onData = (data: Buffer) => {
+      const s = data.toString();
+
+      if (s === "\r" || s === "\n") {
+        // Enter — confirm
+        cleanup();
+        resolve([...selected]);
+        return;
+      }
+      if (s === "\x03" || s === "\x1b") {
+        // Ctrl+C or Escape — cancel
+        cleanup();
+        resolve(null);
+        return;
+      }
+      if (s === " ") {
+        // Space — toggle current
+        const name = names[cursor]!;
+        if (selected.has(name)) selected.delete(name);
+        else selected.add(name);
+        render();
+        return;
+      }
+      if (s === "a") {
+        // 'a' — toggle all/none
+        if (selected.size === names.length) selected.clear();
+        else names.forEach((n) => selected.add(n));
+        render();
+        return;
+      }
+      if (s === "\x1b[A" || s === "k") {
+        // Up
+        cursor = (cursor - 1 + names.length) % names.length;
+        render();
+        return;
+      }
+      if (s === "\x1b[B" || s === "j") {
+        // Down
+        cursor = (cursor + 1) % names.length;
+        render();
+        return;
+      }
+    };
+
+    const cleanup = () => {
+      process.stdin.setRawMode(false);
+      process.stdin.pause();
+      process.stdin.removeListener("data", onData);
+    };
+
+    process.stdin.on("data", onData);
+  });
+}
+
 export function registerSkillsCommands(program: Command): void {
   const skills = program.command("skills").description("Manage Readwise skills for AI agents");
 
@@ -161,10 +250,11 @@ export function registerSkillsCommands(program: Command): void {
     .description("Install skills to an agent platform (claude, codex, opencode)")
     .option("--all", "Detect installed agents and install to all")
     .option("--refresh", "Force refresh from GitHub before installing")
-    .action(async (platform?: string, opts?: { all?: boolean; refresh?: boolean }) => {
+    .option("-y, --yes", "Skip skill selection and install all")
+    .action(async (platform?: string, opts?: { all?: boolean; refresh?: boolean; yes?: boolean }) => {
       try {
-        const names = await getSkillNames(!!opts?.refresh);
-        if (names.length === 0) {
+        const allNames = (await getSkillNames(!!opts?.refresh)).filter((n) => n !== "readwise-mcp");
+        if (allNames.length === 0) {
           console.error("No skills found.");
           process.exitCode = 1;
           return;
@@ -197,6 +287,22 @@ export function registerSkillsCommands(program: Command): void {
           console.error(`Supported platforms: ${Object.keys(PLATFORMS).join(", ")}`);
           process.exitCode = 1;
           return;
+        }
+
+        // Let user pick which skills to install (unless --yes)
+        let names = allNames;
+        if (!opts?.yes && process.stdin.isTTY) {
+          const descs = new Map<string, string>();
+          for (const n of allNames) {
+            const fm = await readSkillFrontmatter(n);
+            if (fm.description) descs.set(n, fm.description);
+          }
+          const picked = await pickSkills(allNames, descs);
+          if (!picked || picked.length === 0) {
+            console.log("No skills selected.");
+            return;
+          }
+          names = picked;
         }
 
         const cache = cacheDir();
