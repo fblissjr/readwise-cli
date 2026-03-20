@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline";
 import { Command } from "commander";
-import { login, loginWithToken, ensureValidToken } from "./auth.js";
+import { login, loginWithToken, ensureValidToken, logout } from "./auth.js";
 import { getTools } from "./mcp.js";
-import { registerTools } from "./commands.js";
-import { loadConfig } from "./config.js";
+import { registerTools, toolNameToCommand } from "./commands.js";
+import { loadConfig, saveConfig, getConfigValue, setConfigValue, getAllConfigEntries, filterReadOnlyTools } from "./config.js";
 import { VERSION } from "./version.js";
 import { registerSkillsCommands } from "./skills.js";
 
@@ -89,6 +89,71 @@ program
     }
   });
 
+const configCmd = program
+  .command("config")
+  .description("Manage CLI configuration");
+
+configCmd
+  .command("show")
+  .description("Show all configuration values")
+  .action(async () => {
+    const config = await loadConfig();
+    const entries = getAllConfigEntries(config);
+    for (const [key, value] of Object.entries(entries)) {
+      console.log(`${key} = ${value}`);
+    }
+  });
+
+configCmd
+  .command("get <key>")
+  .description("Get a configuration value")
+  .action(async (key: string) => {
+    const config = await loadConfig();
+    console.log(getConfigValue(config, key));
+  });
+
+configCmd
+  .command("set <key> <value>")
+  .description("Set a configuration value")
+  .action(async (key: string, value: string) => {
+    try {
+      const config = await loadConfig();
+      const wasReadonly = key === "readonly" && config.config?.readonly === true;
+
+      // Warn before disabling readonly: user will be de-authenticated.
+      if (wasReadonly && value === "false") {
+        if (!process.stdin.isTTY) {
+          process.stderr.write("\x1b[31mCannot disable readonly in non-interactive mode (requires confirmation).\x1b[0m\n");
+          process.exitCode = 1;
+          return;
+        }
+        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        const answer = await new Promise<string>((resolve) => {
+          rl.question("\x1b[33mDisabling readonly mode will log you out and require re-authentication. Continue? [y/N] \x1b[0m", resolve);
+        });
+        rl.close();
+        if (answer.trim().toLowerCase() !== "y") {
+          console.log("Aborted.");
+          return;
+        }
+      }
+
+      setConfigValue(config, key, value);
+      await saveConfig(config);
+      console.log(`${key} = ${getConfigValue(config, key)}`);
+
+      // Disabling readonly via CLI invalidates auth to prevent agents from
+      // toggling it off and immediately using write tools.
+      if (wasReadonly && value === "false") {
+        await logout();
+        console.log("Readonly mode disabled. You have been logged out — run `readwise login` to re-authenticate.");
+      }
+    } catch (err) {
+      process.stderr.write(`\x1b[31m${(err as Error).message}\x1b[0m\n`);
+      process.exitCode = 1;
+    }
+  });
+
 async function main() {
   const config = await loadConfig();
   const forceRefresh = process.argv.includes("--refresh");
@@ -100,9 +165,17 @@ async function main() {
   if (!hasSubcommand && !wantsHelp && process.stdout.isTTY && config.access_token) {
     try {
       const { token, authType } = await ensureValidToken();
-      const tools = await getTools(token, authType, forceRefresh);
+      const allTools = await getTools(token, authType, forceRefresh);
+      let tools = allTools;
+      if (config.config?.readonly) {
+        const filtered = filterReadOnlyTools(allTools);
+        if (filtered.length === 0 && allTools.length > 0) {
+          process.stderr.write("\x1b[33mReadonly mode is on but no tools have annotations. Run `readwise --refresh` to update the cache.\x1b[0m\n");
+        }
+        tools = filtered;
+      }
       const { startTui } = await import("./tui/index.js");
-      await startTui(tools, token, authType);
+      await startTui(tools, allTools, token, authType);
       return;
     } catch (err) {
       process.stderr.write(`\x1b[33mWarning: Could not start TUI: ${(err as Error).message}\x1b[0m\n`);
@@ -121,7 +194,7 @@ async function main() {
   registerSkillsCommands(program);
 
   // If not authenticated and trying a non-login command, tell user to log in
-  if (!config.access_token && hasSubcommand && positionalArgs[0] !== "login" && positionalArgs[0] !== "login-with-token" && positionalArgs[0] !== "skills") {
+  if (!config.access_token && hasSubcommand && positionalArgs[0] !== "login" && positionalArgs[0] !== "login-with-token" && positionalArgs[0] !== "skills" && positionalArgs[0] !== "config") {
     process.stderr.write("\x1b[31mNot logged in.\x1b[0m Run `readwise login` or `readwise login-with-token` to authenticate.\n");
     process.exitCode = 1;
     return;
@@ -131,7 +204,27 @@ async function main() {
   if (config.access_token) {
     try {
       const { token, authType } = await ensureValidToken();
-      const tools = await getTools(token, authType, forceRefresh);
+      let tools = await getTools(token, authType, forceRefresh);
+      if (config.config?.readonly) {
+        const filtered = filterReadOnlyTools(tools);
+        if (filtered.length === 0 && tools.length > 0) {
+          process.stderr.write("\x1b[33mReadonly mode is on but no tools have annotations. Run `readwise --refresh` to update the cache.\x1b[0m\n");
+        }
+        // Check if user is trying to run a tool that was filtered out
+        if (hasSubcommand) {
+          const blockedTool = tools.find(
+            (t) => !filtered.includes(t) && toolNameToCommand(t.name) === positionalArgs[0]
+          );
+          if (blockedTool) {
+            process.stderr.write(
+              `\x1b[31mCommand "${positionalArgs[0]}" is not available in readonly mode.\x1b[0m Run \`readwise config set readonly false\` to disable readonly mode.\n`
+            );
+            process.exitCode = 1;
+            return;
+          }
+        }
+        tools = filtered;
+      }
       registerTools(program, tools);
     } catch (err) {
       // Don't fail — login command should still work

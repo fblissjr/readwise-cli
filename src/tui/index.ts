@@ -2,10 +2,10 @@ import type { ToolDef } from "../config.js";
 import { enterFullScreen, exitFullScreen } from "./term.js";
 import { runApp } from "./app.js";
 
-export async function startTui(tools: ToolDef[], token: string, authType: "oauth" | "token"): Promise<void> {
+export async function startTui(tools: ToolDef[], allTools: ToolDef[], token: string, authType: "oauth" | "token"): Promise<void> {
   enterFullScreen();
   try {
-    await runApp(tools);
+    await runApp(tools, allTools);
   } finally {
     exitFullScreen();
   }

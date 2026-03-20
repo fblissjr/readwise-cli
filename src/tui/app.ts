@@ -1,5 +1,6 @@
 import { exec } from "node:child_process";
 import type { ToolDef, SchemaProperty } from "../config.js";
+import { loadConfig, saveConfig, getAllConfigEntries, setConfigValue, filterReadOnlyTools } from "../config.js";
 import { resolveProperty } from "../commands.js";
 import { callTool } from "../mcp.js";
 import { ensureValidToken } from "../auth.js";
@@ -9,7 +10,7 @@ import { VERSION } from "../version.js";
 
 // --- Types ---
 
-type View = "commands" | "form" | "loading" | "results";
+type View = "commands" | "form" | "loading" | "results" | "settings";
 
 interface FormField {
   name: string;
@@ -44,7 +45,8 @@ interface CardItem {
 
 interface AppState {
   view: View;
-  tools: ToolDef[];
+  tools: ToolDef[];       // currently visible tools (may be filtered)
+  allTools: ToolDef[];    // full unfiltered tool list
   // Command list
   listCursor: number;
   listScrollTop: number;
@@ -84,6 +86,12 @@ interface AppState {
   resultCardScroll: number;   // scroll offset for cards
   // Spinner
   spinnerFrame: number;
+  // Settings
+  settingsCursor: number;
+  settingsEntries: { key: string; value: unknown }[];
+
+  settingsEditing: boolean;
+  settingsEditCursor: number;
 }
 
 // --- Helpers ---
@@ -133,6 +141,8 @@ function buildCommandList(tools: ToolDef[]): ListItem[] {
       result.push(...group.items);
     }
   }
+  result.push({ label: "CLI", value: "", isSeparator: true });
+  result.push({ label: "Settings", value: "__settings__", description: "Configure CLI options" });
   return result;
 }
 
@@ -151,6 +161,9 @@ function filterCommands(tools: ToolDef[], query: string): ListItem[] {
     if (haystack.includes(q)) {
       items.push({ label, value: tool.name, description: tool.description });
     }
+  }
+  if ("settings configure cli options".includes(q)) {
+    items.push({ label: "Settings", value: "__settings__", description: "Configure CLI options" });
   }
   return items;
 }
@@ -1688,22 +1701,117 @@ function renderResults(state: AppState): string[] {
   });
 }
 
+function settingsChoices(entry: { key: string; value: unknown }): string[] {
+  // All config keys are boolean for now
+  return ["on", "off"];
+}
+
+function settingsValueLabel(value: unknown): string {
+  if (value === true) return "on";
+  if (value === false) return "off";
+  return String(value);
+}
+
+function renderSettings(state: AppState): string[] {
+  const entries = state.settingsEntries;
+  const content: string[] = [];
+  content.push("");
+
+  if (entries.length === 0) {
+    content.push("   " + style.dim("Loading settings..."));
+  } else {
+    const maxKeyWidth = Math.max(...entries.map((e) => e.key.length), 0);
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i]!;
+      const selected = i === state.settingsCursor;
+      const prefix = selected ? " " + style.yellow("❯") + " " : "   ";
+      const label = e.key.padEnd(maxKeyWidth);
+      const valueStr = e.value === true ? style.green("on") : e.value === false ? style.dim("off") : String(e.value);
+      const line = prefix + (selected ? style.bold(label) : label) + "  " + valueStr;
+      content.push(line);
+
+      // Show inline picker when editing this entry
+      if (selected && state.settingsEditing) {
+        const choices = settingsChoices(e);
+        for (let ci = 0; ci < choices.length; ci++) {
+          const isCursor = ci === state.settingsEditCursor;
+          const choiceLine = (isCursor ? "   › " : "     ") + choices[ci]!;
+          content.push(isCursor ? style.cyan(style.bold(choiceLine)) : choiceLine);
+        }
+      }
+    }
+  }
+
+  const footer = state.settingsEditing
+    ? style.dim("↑↓ navigate · enter confirm · esc cancel")
+    : style.dim("↑↓ navigate · enter edit · esc back");
+
+  return renderLayout({
+    breadcrumb: style.boldYellow("Readwise") + style.dim(" › ") + style.bold("Settings"),
+    content,
+    footer,
+  });
+}
+
+function handleSettingsInput(state: AppState, key: KeyEvent): AppState | "settingsToggle" {
+  if (state.settingsEditing) {
+    const entry = state.settingsEntries[state.settingsCursor];
+    if (!entry) return { ...state, settingsEditing: false };
+    const choices = settingsChoices(entry);
+
+    if (key.name === "escape" || (key.ctrl && key.name === "c")) {
+      return { ...state, settingsEditing: false };
+    }
+    if (key.name === "up") {
+      return { ...state, settingsEditCursor: state.settingsEditCursor <= 0 ? choices.length - 1 : state.settingsEditCursor - 1 };
+    }
+    if (key.name === "down") {
+      return { ...state, settingsEditCursor: state.settingsEditCursor >= choices.length - 1 ? 0 : state.settingsEditCursor + 1 };
+    }
+    if (key.name === "return") {
+      return "settingsToggle";
+    }
+    return state;
+  }
+
+  if (key.name === "escape" || (key.ctrl && key.name === "c")) {
+    return { ...state, ...commandListReset(state.tools) };
+  }
+  if (key.name === "up") {
+    return { ...state, settingsCursor: Math.max(0, state.settingsCursor - 1) };
+  }
+  if (key.name === "down") {
+    return { ...state, settingsCursor: Math.min(state.settingsEntries.length - 1, state.settingsCursor + 1) };
+  }
+  if (key.name === "return" && state.settingsEntries.length > 0) {
+    const entry = state.settingsEntries[state.settingsCursor]!;
+    const choices = settingsChoices(entry);
+    const currentLabel = settingsValueLabel(entry.value);
+    const cursorIdx = choices.indexOf(currentLabel);
+    return { ...state, settingsEditing: true, settingsEditCursor: cursorIdx >= 0 ? cursorIdx : 0 };
+  }
+
+  return state;
+}
+
 function renderState(state: AppState): string[] {
   switch (state.view) {
     case "commands": return renderCommandList(state);
     case "form": return renderForm(state);
     case "loading": return renderLoading(state);
     case "results": return renderResults(state);
+    case "settings": return renderSettings(state);
   }
 }
 
 // --- Input handling ---
 
-function handleInput(state: AppState, key: KeyEvent): AppState | "exit" | "submit" | "openUrl" {
+function handleInput(state: AppState, key: KeyEvent): AppState | "exit" | "submit" | "openUrl" | "settingsToggle" {
   switch (state.view) {
     case "commands": return handleCommandListInput(state, key);
     case "form": return handleFormInput(state, key);
     case "results": return handleResultsInput(state, key);
+    case "settings": return handleSettingsInput(state, key);
     default: return state;
   }
 }
@@ -1785,6 +1893,9 @@ function handleCommandListInput(state: AppState, key: KeyEvent): AppState | "exi
   // Enter: select highlighted command
   if (key.name === "return") {
     const item = items[s.listCursor];
+    if (item && !item.isSeparator && item.value === "__settings__") {
+      return { ...s, view: "settings" as View, settingsCursor: 0, settingsEntries: [], settingsEditing: false, settingsEditCursor: 0 };
+    }
     if (item && !item.isSeparator) {
       const tool = s.tools.find((t) => t.name === item.value);
       if (tool) {
@@ -2876,13 +2987,14 @@ async function executeTool(state: AppState): Promise<AppState> {
 
 // --- Main loop ---
 
-export async function runApp(tools: ToolDef[]): Promise<void> {
+export async function runApp(tools: ToolDef[], allTools: ToolDef[]): Promise<void> {
   const items = buildCommandList(tools);
   const selectable = selectableIndices(items);
 
   let state: AppState = {
     view: "commands",
     tools,
+    allTools,
     listCursor: selectable[0] ?? 0,
     listScrollTop: 0,
     quitConfirm: false,
@@ -2916,6 +3028,10 @@ export async function runApp(tools: ToolDef[]): Promise<void> {
     resultCursor: 0,
     resultCardScroll: 0,
     spinnerFrame: 0,
+    settingsCursor: 0,
+    settingsEntries: [],
+    settingsEditing: false,
+    settingsEditCursor: 0,
   };
 
   paint(renderState(state));
@@ -2993,6 +3109,34 @@ export async function runApp(tools: ToolDef[]): Promise<void> {
         return;
       }
 
+      if (result === "settingsToggle") {
+        const entry = state.settingsEntries[state.settingsCursor];
+        if (entry) {
+          const choices = settingsChoices(entry);
+          const picked = choices[state.settingsEditCursor] ?? "off";
+          const rawValue = picked === "on" ? "true" : "false";
+          loadConfig().then((config) => {
+            setConfigValue(config, entry.key, rawValue);
+            return saveConfig(config).then(() => {
+              const entries = Object.entries(getAllConfigEntries(config)).map(([key, value]) => ({ key, value }));
+              // Re-apply tool filtering based on new config
+              const visibleTools = config.config?.readonly
+                ? filterReadOnlyTools(state.allTools)
+                : state.allTools;
+              state = {
+                ...state,
+                tools: visibleTools,
+                settingsEntries: entries,
+                settingsEditing: false,
+
+              };
+              paint(renderState(state));
+            });
+          });
+        }
+        return;
+      }
+
       if (result === "submit") {
         state = { ...state, view: "loading", spinnerFrame: 0 };
         paint(renderState(state));
@@ -3008,6 +3152,16 @@ export async function runApp(tools: ToolDef[]): Promise<void> {
       }
 
       state = result;
+
+      // Load settings entries when entering settings view
+      if (state.view === "settings" && state.settingsEntries.length === 0) {
+        loadConfig().then((config) => {
+          const entries = Object.entries(getAllConfigEntries(config)).map(([key, value]) => ({ key, value }));
+          state = { ...state, settingsEntries: entries };
+          paint(renderState(state));
+        });
+      }
+
       paint(renderState(state));
       resetQuitTimer();
     };

@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { loadConfig, saveConfig, isCacheValid, type ToolDef } from "./config.js";
+import { loadConfig, saveConfig, isCacheValid, TOOLS_CACHE_VERSION, type ToolDef } from "./config.js";
 import { VERSION } from "./version.js";
 
 const MCP_URL = "https://mcp2.readwise.io/mcp";
@@ -38,6 +38,7 @@ export async function getTools(token: string, authType: "oauth" | "token", force
     config.tools_cache = {
       tools,
       fetched_at: Date.now(),
+      version: TOOLS_CACHE_VERSION,
     };
     await saveConfig(config);
 
