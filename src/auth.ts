@@ -197,6 +197,18 @@ export async function loginWithToken(token: string): Promise<void> {
   console.log("Token saved to ~/.readwise-cli.json");
 }
 
+export async function logout(): Promise<void> {
+  const config = await loadConfig();
+  delete config.access_token;
+  delete config.refresh_token;
+  delete config.expires_at;
+  delete config.auth_type;
+  delete config.client_id;
+  delete config.client_secret;
+  delete config.tools_cache;
+  await saveConfig(config);
+}
+
 export async function ensureValidToken(): Promise<{ token: string; authType: "oauth" | "token" }> {
   const config = await loadConfig();
 

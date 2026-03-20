@@ -117,6 +117,35 @@ readwise reader-export-documents --since-updated "2024-06-01T00:00:00Z"
 | `--refresh` | Force-refresh the command list from the server |
 | `--help` | Show all commands or command-specific options |
 
+## Configuration
+
+Manage CLI settings with the `config` command. Settings are stored in `~/.readwise-cli.json` under the `config` key.
+
+```bash
+readwise config show              # show all settings with current values
+readwise config get readonly      # get a single setting
+readwise config set readonly true # set a setting
+```
+
+### Readonly mode
+
+When `readonly` is enabled, only read-only tools (search, list, get) are available — write operations (create, move, tag, edit) are hidden from commands and the TUI. This is useful for agents or scripts that should never modify your library.
+
+```bash
+readwise config set readonly true
+readwise --refresh   # re-fetch tool cache with annotations
+readwise --help      # only read-only commands shown
+```
+
+To restore full access:
+
+```bash
+readwise config set readonly false
+readwise login   # re-authentication required
+```
+
+> **Note:** Disabling readonly via the CLI logs you out and requires re-authentication. This prevents an AI agent from silently toggling readonly off and using write tools. The TUI settings screen is not affected — toggling readonly there does not require re-login.
+
 ## Examples
 
 Pipe results to `jq`:
