@@ -545,7 +545,7 @@ function extractHighlightMeta(obj: Record<string, unknown>): string {
 }
 
 function extractCardUrl(obj: Record<string, unknown>): string {
-  for (const key of ["url", "source_url", "reader_url", "readwise_url"]) {
+  for (const key of ["highlights_url", "url", "source_url", "reader_url", "readwise_url"]) {
     if (obj[key] && typeof obj[key] === "string") return obj[key] as string;
   }
   return "";
