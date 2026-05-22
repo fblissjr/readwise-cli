@@ -12,28 +12,39 @@ npm install -g @readwise/cli
 
 ## Setup
 
-### Interactive login (opens browser)
+### 🔑 Recommended setup: Access token login
 
-```bash
-readwise login
-```
-
-### Access token login (for separate hosts like OpenClaw, or scripts)
-
-Get your token from [readwise.io/access_token](https://readwise.io/access_token), then:
+This is the most robust and secure way to authenticate. Get your token from [readwise.io/access_token](https://readwise.io/access_token), then run:
 
 ```bash
 readwise login-with-token
-# prompts for token (hidden input, not stored in shell history)
+# Prompts for token via a secure hidden input (not stored in your shell history)
 ```
 
-You can also pipe the token in:
+You can also pass the token as an argument:
+
+```bash
+readwise login-with-token <your_token>
+```
+
+Or pipe it in:
 
 ```bash
 echo "$READWISE_TOKEN" | readwise login-with-token
 ```
 
-Credentials are stored in `~/.readwise-cli.json`. OAuth tokens refresh automatically.
+> [!TIP]
+> **Why this is recommended**: Direct access token flow completely avoids OAuth browser redirection, prevents local callback server port/firewall conflicts, is extremely fast, and the secure hidden CLI prompt guarantees the key is never leaked into terminal history files.
+
+### Interactive login (opens browser)
+
+If you prefer to authenticate via standard browser-based OAuth:
+
+```bash
+readwise login
+```
+
+Credentials are stored securely in `~/.readwise-cli.json`. OAuth tokens refresh automatically.
 
 ## Commands
 
