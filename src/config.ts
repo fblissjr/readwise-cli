@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, stat, chmod } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -67,8 +67,22 @@ export function getConfigPath(): string {
 }
 
 export async function loadConfig(): Promise<Config> {
+  const path = getConfigPath();
   try {
-    const data = await readFile(getConfigPath(), "utf-8");
+    const stats = await stat(path);
+    if ((stats.mode & 0o777) !== 0o600) {
+      try {
+        await chmod(path, 0o600);
+      } catch {
+        // Ignore chmod failures on non-POSIX filesystems
+      }
+    }
+  } catch {
+    // File doesn't exist
+  }
+
+  try {
+    const data = await readFile(path, "utf-8");
     return JSON.parse(data) as Config;
   } catch {
     return {};
@@ -76,7 +90,10 @@ export async function loadConfig(): Promise<Config> {
 }
 
 export async function saveConfig(config: Config): Promise<void> {
-  await writeFile(getConfigPath(), JSON.stringify(config, null, 2) + "\n", "utf-8");
+  await writeFile(getConfigPath(), JSON.stringify(config, null, 2) + "\n", {
+    encoding: "utf-8",
+    mode: 0o600,
+  });
 }
 
 export function isCacheValid(config: Config): boolean {

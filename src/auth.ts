@@ -91,9 +91,21 @@ function waitForCallback(state: string): Promise<string> {
       // Server ready
     });
 
-    server.on("error", (err) => {
+    server.on("error", (err: any) => {
       clearTimeout(timeout);
-      reject(new Error(`Failed to start callback server: ${err.message}`));
+      if (err.code === "EADDRINUSE") {
+        reject(
+          new Error(
+            "Failed to start callback server: Port 6274 is already in use.\n" +
+            "Please terminate any other process listening on this port:\n" +
+            "  1. Run `lsof -i :6274` to find the process ID (PID).\n" +
+            "  2. Run `kill -9 <PID>` to terminate it.\n" +
+            "Then, run `readwise login` again."
+          )
+        );
+      } else {
+        reject(new Error(`Failed to start callback server: ${err.message}`));
+      }
     });
 
     // Timeout after 2 minutes

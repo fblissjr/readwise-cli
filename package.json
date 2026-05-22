@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
+    "dev": "bun src/index.ts",
     "start": "node dist/index.js"
   },
   "dependencies": {

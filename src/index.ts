@@ -2,7 +2,7 @@
 import { createInterface } from "node:readline";
 import { Command } from "commander";
 import { login, loginWithToken, ensureValidToken, logout } from "./auth.js";
-import { getTools } from "./mcp.js";
+import { getTools, getSharedClient, closeSharedClient } from "./mcp.js";
 import { registerTools, toolNameToCommand } from "./commands.js";
 import { loadConfig, saveConfig, getConfigValue, setConfigValue, getAllConfigEntries, filterReadOnlyTools } from "./config.js";
 import { VERSION } from "./version.js";
@@ -165,6 +165,8 @@ async function main() {
   if (!hasSubcommand && !wantsHelp && process.stdout.isTTY && config.access_token) {
     try {
       const { token, authType } = await ensureValidToken();
+      // Establish persistent pooled connection
+      await getSharedClient(token, authType);
       const allTools = await getTools(token, authType, forceRefresh);
       let tools = allTools;
       if (config.config?.readonly) {
@@ -175,9 +177,14 @@ async function main() {
         tools = filtered;
       }
       const { startTui } = await import("./tui/index.js");
-      await startTui(tools, allTools, token, authType);
+      try {
+        await startTui(tools, allTools, token, authType);
+      } finally {
+        await closeSharedClient();
+      }
       return;
     } catch (err) {
+      await closeSharedClient();
       process.stderr.write(`\x1b[33mWarning: Could not start TUI: ${(err as Error).message}\x1b[0m\n`);
       // Fall through to Commander help
     }
