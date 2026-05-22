@@ -74,7 +74,7 @@ sequenceDiagram
     participant Auth as src/auth.ts
     participant MCP as src/mcp.ts
     
-    User->>CLI: readwise reader-list-documents --limit 5
+    User->>CLI: bun run dev reader-list-documents --limit 5
     CLI->>Config: loadConfig()
     Config-->>CLI: returns config (tokens & cache)
     CLI->>Auth: ensureValidToken()
@@ -130,14 +130,14 @@ The OAuth flow in [`src/auth.ts`](file:///Users/fredbliss/workspace/readwise-cli
 
 If you are an AI agent operating inside a workspace with this CLI installed:
 
-1.  **Checking Permissions**: Before attempting any write operations (like `reader-create-document` or `reader-add-tags-to-document`), check the config state by querying `readwise config get readonly` or inspect `~/.readwise-cli.json` to confirm you have authorization.
-2.  **Using Json Output**: Always use the `--json` option if you are calling commands inside scripts or shells (e.g. `readwise reader-list-documents --json | jq ...`). This skips human-readable formatting and outputs machine-parseable data.
-3.  **Handling Auth Expiry**: If a dynamic command returns `Not logged in` or a token refresh fails, ask the user to run `readwise login-with-token` (recommended) or `readwise login`. Do not attempt to mock or bypass this manually as it requires active user interaction.
+1.  **Checking Permissions**: Before attempting any write operations (like `reader-create-document` or `reader-add-tags-to-document`), check the config state by querying `bun run dev config get readonly` (or `readwise config get readonly` if globally linked) or inspect `~/.readwise-cli.json` to confirm you have authorization.
+2.  **Using Json Output**: Always use the `--json` option if you are calling commands inside scripts or shells (e.g. `bun run dev reader-list-documents --json | jq ...` or `readwise reader-list-documents --json | jq ...`). This skips human-readable formatting and outputs machine-parseable data.
+3.  **Handling Auth Expiry**: If a dynamic command returns `Not logged in` or a token refresh fails, ask the user to run `bun run dev login-with-token` (recommended) or `bun run dev login`. Do not attempt to mock or bypass this manually as it requires active user interaction.
 
     > [!TIP]
-    > **Recommended Auth Path**: The direct access token flow (`readwise login-with-token`) is the most robust way to authenticate in development. It avoids OAuth browser redirection, prevents local callback server port/firewall conflicts, is extremely fast, and the secure hidden CLI prompt guarantees the key is never leaked into the user's terminal history files.
+    > **Recommended Auth Path**: The direct access token flow (`bun run dev login-with-token`) is the most robust way to authenticate in development. It avoids OAuth browser redirection, prevents local callback server port/firewall conflicts, is extremely fast, and the secure hidden CLI prompt guarantees the key is never leaked into the user's terminal history files.
 
-4.  **Extending Capability (Skills)**: If you need to inject complex instructions or specialized agent parameters, check what skills are available using `readwise skills list`, and install them to your platform using `readwise skills install claude`.
+4.  **Extending Capability (Skills)**: If you need to inject complex instructions or specialized agent parameters, check what skills are available using `bun run dev skills list`, and install them to your platform using `bun run dev skills install claude`.
 
 ---
 
