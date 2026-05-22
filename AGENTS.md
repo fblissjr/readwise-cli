@@ -36,6 +36,7 @@ The Readwise CLI is a hybrid node application that acts as a client to the **Rea
 
 Here is a structural breakdown of the codebase:
 
+*   [`bin/readwise.js`](file:///Users/fredbliss/workspace/readwise-cli/bin/readwise.js): The smart binary execution wrapper. In development environments, it automatically forwards all commands to run the TypeScript source on-the-fly via Bun, completely avoiding manual TS compilation cycles. In production, it falls back to importing the compiled `dist/index.js` bundle.
 *   [`src/index.ts`](file:///Users/fredbliss/workspace/readwise-cli/src/index.ts): The main entry point. Orchestrates Command Line Option parsing via Commander, initializes authentication checks, loads the dynamic tools, and boots the Terminal User Interface (TUI) if run in interactive mode without arguments.
 *   [`src/auth.ts`](file:///Users/fredbliss/workspace/readwise-cli/src/auth.ts): Handles OAuth 2.0 with PKCE (Proof Key for Code Exchange) flow. Operates a temporary loopback HTTP server (`http://localhost:6274/callback`) to intercept authorization codes, and handles direct API tokens. Features graceful error diagnostics for `EADDRINUSE` port conflicts.
 *   [`src/config.ts`](file:///Users/fredbliss/workspace/readwise-cli/src/config.ts): Manages configuration loading/saving (cached in `~/.readwise-cli.json`), including cached tool schemas and readonly rules. Enforces POSIX `0600` user-only read/write privileges on save and load to protect keys.

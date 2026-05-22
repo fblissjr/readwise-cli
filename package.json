@@ -4,9 +4,10 @@
   "description": "Command-line interface for Readwise and Reader",
   "type": "module",
   "bin": {
-    "readwise": "./dist/index.js"
+    "readwise": "./bin/readwise.js"
   },
   "files": [
+    "bin",
     "dist",
     "src",
     "README.md",

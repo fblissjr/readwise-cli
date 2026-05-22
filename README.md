@@ -32,8 +32,8 @@ Now you can execute the command from any directory on your machine:
 ```bash
 readwise <command>
 ```
-> [!NOTE]
-> Since this runs the compiled JavaScript, remember to run `bun run build` after editing source code to apply updates globally.
+> [!TIP]
+> **Zero Rebuilds in Dev**: Because this fork features an intelligent binary wrapper (`bin/readwise.js`), when you execute the globally-linked `readwise` command inside or relative to your development workspace, it will automatically detect the TypeScript source and run it on-the-fly via Bun. You do not need to rebuild the project while editing code! It falls back to the compiled `dist/index.js` production bundle only if you run it outside the workspace or on a machine without Bun.
 
 ---
 
