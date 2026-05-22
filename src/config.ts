@@ -54,6 +54,7 @@ export interface Config {
     tools: ToolDef[];
     fetched_at: number;
     version?: number;
+    etag?: string;
   };
   config?: CLIConfig;
 }
@@ -84,7 +85,8 @@ export async function loadConfig(): Promise<Config> {
   try {
     const data = await readFile(path, "utf-8");
     return JSON.parse(data) as Config;
-  } catch {
+  } catch (err) {
+    console.error("DEBUG loadConfig ERROR:", err);
     return {};
   }
 }

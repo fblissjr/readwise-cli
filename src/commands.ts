@@ -91,7 +91,11 @@ export function displayResult(result: { content: Array<{ type: string; text?: st
       } else {
         try {
           const parsed = JSON.parse(item.text);
-          console.log(JSON.stringify(parsed, null, 2));
+          if (typeof parsed === "object" && parsed !== null) {
+            console.log(JSON.stringify(parsed, null, 2));
+          } else {
+            console.log(item.text);
+          }
         } catch {
           console.log(item.text);
         }

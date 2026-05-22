@@ -171,15 +171,26 @@ Using Claude Desktop, ChatGPT, or another AI app? Connect Readwise via MCP — n
 
 ## How it works
 
-The CLI connects to the [Readwise MCP server](https://mcp2.readwise.io) internally, auto-discovers available tools, and exposes each one as a CLI command. The tool list is cached locally for 24 hours.
+The CLI connects to the [Readwise MCP server](https://mcp2.readwise.io) internally, auto-discovers available tools, and exposes each one as a CLI command. 
+
+* **Smart Caching Layer**: To minimize network usage and startup latency, tool schemas are cached locally (valid for 24 hours). We utilize a double-layered check:
+  1. **HTTP ETag (If-None-Match)**: Checks if the schema has changed on the server without downloading the full payload (returning HTTP `304 Not Modified`).
+  2. **SHA-256 Checksum Validation**: If the toolset is downloaded, it is sorted and compared via a SHA-256 hash against the cached version. If structurally identical, no cache invalidation or disk write is performed.
+* **TUI Connection Pooling**: When running the interactive TUI, the CLI establishes a persistent connection pool strictly for the duration of the interactive session, eliminating handshake round-trip latencies during navigation and search.
 
 ## Development
 
+This CLI is developed using the **Bun** runtime. Make sure Bun is installed on your local machine.
+
 ```bash
 git clone https://github.com/readwise/readwise-cli && cd readwise-cli
-npm install
-npm run build
+bun install
+bun run build
 
-# Run without building
-npx tsx src/index.ts --help
+# Run directly without building
+bun src/index.ts --help
+
+# Run the test suite
+bun test
 ```
+

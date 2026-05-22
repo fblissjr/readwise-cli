@@ -4,7 +4,7 @@ import { Command } from "commander";
 import { login, loginWithToken, ensureValidToken, logout } from "./auth.js";
 import { getTools, getSharedClient, closeSharedClient } from "./mcp.js";
 import { registerTools, toolNameToCommand } from "./commands.js";
-import { loadConfig, saveConfig, getConfigValue, setConfigValue, getAllConfigEntries, filterReadOnlyTools } from "./config.js";
+import { loadConfig, saveConfig, getConfigValue, setConfigValue, getAllConfigEntries, filterReadOnlyTools, getConfigPath } from "./config.js";
 import { VERSION } from "./version.js";
 import { registerSkillsCommands } from "./skills.js";
 
@@ -160,9 +160,21 @@ async function main() {
   const positionalArgs = process.argv.slice(2).filter((a) => !a.startsWith("--"));
   const hasSubcommand = positionalArgs.length > 0;
   const wantsHelp = process.argv.includes("--help") || process.argv.includes("-h");
+  const isTTY = process.stdout.isTTY || process.env.FORCE_TTY === "true";
+
+  console.error("DEBUG TUI ENTRY:", {
+    argv: process.argv,
+    positionalArgs,
+    hasSubcommand,
+    wantsHelp,
+    isTTY,
+    hasToken: !!config.access_token,
+    configPath: getConfigPath(),
+    configKeys: Object.keys(config)
+  });
 
   // If no subcommand, TTY, and authenticated → launch TUI (unless --help)
-  if (!hasSubcommand && !wantsHelp && process.stdout.isTTY && config.access_token) {
+  if (!hasSubcommand && !wantsHelp && isTTY && config.access_token) {
     try {
       const { token, authType } = await ensureValidToken();
       // Establish persistent pooled connection
@@ -191,7 +203,7 @@ async function main() {
   }
 
   // If no subcommand and not authenticated → hint to login
-  if (!hasSubcommand && process.stdout.isTTY && !config.access_token) {
+  if (!hasSubcommand && isTTY && !config.access_token) {
     await program.parseAsync(process.argv);
     console.log("\nRun `readwise login` or `readwise login-with-token` to authenticate.");
     return;

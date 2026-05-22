@@ -44,7 +44,7 @@ function generatePKCE(): { verifier: string; challenge: string } {
   return { verifier, challenge };
 }
 
-function waitForCallback(state: string): Promise<string> {
+export function waitForCallback(state: string): Promise<string> {
   return new Promise((resolve, reject) => {
     let timeout: NodeJS.Timeout;
 
@@ -54,6 +54,14 @@ function waitForCallback(state: string): Promise<string> {
     };
 
     const server = createServer((req, res) => {
+      const remoteAddress = req.socket.remoteAddress;
+      const isLocal = remoteAddress === "127.0.0.1" || remoteAddress === "::1" || remoteAddress === "::ffff:127.0.0.1";
+      if (!isLocal) {
+        res.writeHead(403, { "Content-Type": "text/plain" });
+        res.end("Forbidden: Access restricted to loopback interface.");
+        return;
+      }
+
       const url = new URL(req.url!, `http://localhost:6274`);
       if (url.pathname !== "/callback") {
         res.writeHead(404);
@@ -225,7 +233,7 @@ export async function ensureValidToken(): Promise<{ token: string; authType: "oa
   const config = await loadConfig();
 
   if (!config.access_token) {
-    throw new Error("Not logged in. Run `readwise-cli login` or `readwise-cli login-with-token <token>` first.");
+    throw new Error("Not logged in. Run `readwise login` or `readwise login-with-token <token>` first.");
   }
 
   const authType = config.auth_type ?? "oauth";
@@ -238,7 +246,7 @@ export async function ensureValidToken(): Promise<{ token: string; authType: "oa
   // Refresh if expired or expiring within 60s
   if (config.expires_at && Date.now() > config.expires_at - 60_000) {
     if (!config.refresh_token || !config.client_id || !config.client_secret) {
-      throw new Error("Cannot refresh token — missing credentials. Run `readwise-cli login` again.");
+      throw new Error("Cannot refresh token — missing credentials. Run `readwise login` again.");
     }
 
     console.error("Refreshing access token...");
@@ -258,7 +266,7 @@ export async function ensureValidToken(): Promise<{ token: string; authType: "oa
 
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(`Token refresh failed: ${res.status} ${body}. Run \`readwise-cli login\` again.`);
+      throw new Error(`Token refresh failed: ${res.status} ${body}. Run \`readwise login\` again.`);
     }
 
     const tokens = (await res.json()) as { access_token: string; refresh_token?: string; expires_in: number };

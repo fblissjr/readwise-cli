@@ -54,6 +54,9 @@ Here is a structural breakdown of the codebase:
         *   [`form.ts`](file:///Users/fredbliss/workspace/readwise-cli/src/tui/views/form.ts): Draws form layout layers, handling date structures and list arrays.
         *   [`results.ts`](file:///Users/fredbliss/workspace/readwise-cli/src/tui/views/results.ts): Renders dynamic grids of search cards and Paginated Reader details.
         *   [`settings.ts`](file:///Users/fredbliss/workspace/readwise-cli/src/tui/views/settings.ts): Draws interactive key-value options for active configuration variables.
+*   [`tests/`](file:///Users/fredbliss/workspace/readwise-cli/tests):
+    *   [`harness.ts`](file:///Users/fredbliss/workspace/readwise-cli/tests/harness.ts): The unified, dual-stream testing harness providing in-memory stream spying (`MockTUIHarness`) for fast, non-blocking unit assertions, and automated native PTY subprocess spawning (`PtyTUIHarness`) via `Bun.spawn` for real terminal verification. Isolates all temporary homedirs within a gitignored `tests/tmp/` directory to prevent workspace clutter.
+    *   [`tui-integration.test.ts`](file:///Users/fredbliss/workspace/readwise-cli/tests/tui-integration.test.ts): Core integration test suite validating rendering, search filtering, inputs, and exit states under both Mock and PTY contexts.
 
 ---
 
@@ -129,7 +132,11 @@ If you are an AI agent operating inside a workspace with this CLI installed:
 
 1.  **Checking Permissions**: Before attempting any write operations (like `reader-create-document` or `reader-add-tags-to-document`), check the config state by querying `readwise config get readonly` or inspect `~/.readwise-cli.json` to confirm you have authorization.
 2.  **Using Json Output**: Always use the `--json` option if you are calling commands inside scripts or shells (e.g. `readwise reader-list-documents --json | jq ...`). This skips human-readable formatting and outputs machine-parseable data.
-3.  **Handling Auth Expiry**: If a dynamic command returns `Not logged in` or a token refresh fails, ask the user to run `readwise login` or `readwise login-with-token`. Do not attempt to mock or bypass this manually as it requires interactive browser redirection.
+3.  **Handling Auth Expiry**: If a dynamic command returns `Not logged in` or a token refresh fails, ask the user to run `readwise login-with-token` (recommended) or `readwise login`. Do not attempt to mock or bypass this manually as it requires active user interaction.
+
+    > [!TIP]
+    > **Recommended Auth Path**: The direct access token flow (`readwise login-with-token`) is the most robust way to authenticate in development. It avoids OAuth browser redirection, prevents local callback server port/firewall conflicts, is extremely fast, and the secure hidden CLI prompt guarantees the key is never leaked into the user's terminal history files.
+
 4.  **Extending Capability (Skills)**: If you need to inject complex instructions or specialized agent parameters, check what skills are available using `readwise skills list`, and install them to your platform using `readwise skills install claude`.
 
 ---
@@ -138,8 +145,16 @@ If you are an AI agent operating inside a workspace with this CLI installed:
 
 ### 1. Performance & Cache Hardening
 
-#### ⏱️ Smart Schema ETag Validation (Medium Priority)
-*   **Optimization**: Instead of fetching the entire tool listing on cache expiration (24h), execute a lightweight HTTP `HEAD` request or utilize Cache-Control headers to check if the schema has updated, saving bandwidth and improving launch speeds.
+#### ⏱️ Smart Schema Validation (Double-Layered Cache) — **[COMPLETED]**
+*   **Implementation**: Optimized dynamic tool schema loading. 
+    *   **Layer 1 (If-None-Match ETag)**: Sends the cached schema's hash as an `If-None-Match` header to the MCP server. If the server returns HTTP `304 Not Modified`, it re-validates the TTL in `~/.readwise-cli.json` and skips transferring the full JSON payload.
+    *   **Layer 2 (Client-Side Checksum Check)**: In case HTTP 304 isn't supported or standard POST tool listings occur, the client sorts and hashes the returned tool list using SHA-256. If the hash is identical to the cached version, it skips updating the configuration's last-fetched timestamp structure, preserving disk I/O.
 
 #### 📐 Debounced Resize Painting (Low Priority)
 *   **Optimization**: When the terminal window is resized, the process receives multiple `resize` events in rapid succession. Debouncing the `paint` calls during resize cycles will prevent intermediate screen tearing and frame buffer collision.
+
+### 2. Upstream Decoupling & Spec Alignments
+
+#### 🔌 Stateless MCP Client Transport (Strategic Priority)
+*   **Optimization**: Leverage the `2026-07-28` RC stateless MCP spec (referencing upstream PR #2750) to fully remove `@modelcontextprotocol/sdk`. By replacing it with a lightweight, bespoke stateless transport (direct `fetch` with `Mcp-Method` and `MCP-Protocol-Version` custom headers), we eliminate heavy server-side transitive dependencies (Express, Hono, rate limiters, body parsers) and completely avoid security vulnerability audit concerns.
+
