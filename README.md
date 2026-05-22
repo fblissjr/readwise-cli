@@ -1,14 +1,21 @@
-# The Official Readwise CLI
+# Readwise CLI (Bun Fork)
 
-A command-line interface for [Readwise](https://readwise.io) and [Reader](https://read.readwise.io). Search your documents & highlights, manage your reading list, tag and organize documents — all from the terminal.
+This is an optimized, high-performance fork of the official Readwise command-line interface for [Readwise](https://readwise.io) and [Reader](https://read.readwise.io). Search your documents & highlights, manage your reading list, tag and organize documents — all from the terminal.
 
 Anything you can do in Readwise/Reader, your agent can now do for you.
 
+> [!NOTE]
+> **Fork Enhancements**: This fork is fully optimized for the **Bun** runtime. It introduces high-performance TUI connection pooling, double-layered schema ETag & Checksum validation caching, unified Mock/PTY testing isolation, and pristine workspace test hygiene.
+
 ## Install
 
+To install globally using Bun:
+
 ```bash
-npm install -g @readwise/cli
+bun install -g @readwise/cli
 ```
+
+Or for local development, see the [Development](#development) section.
 
 ## Setup
 
@@ -204,4 +211,3 @@ bun src/index.ts --help
 # Run the test suite
 bun test
 ```
-
